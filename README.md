@@ -24,6 +24,7 @@ peekadoc is a read-only web file browser. A folder tree sits on the left, and th
 - [Quick start](#quick-start)
 - [Usage](#usage)
 - [Run it on your tailnet](#run-it-on-your-tailnet)
+- [Run in the background](#run-in-the-background)
 - [Run as a service (macOS)](#run-as-a-service-macos)
 - [MkDocs setup](#mkdocs-setup)
 - [Security](#security)
@@ -55,6 +56,13 @@ go build -o peekadoc .
 ```
 
 Open <http://127.0.0.1:8000/>. The first start takes a minute while `uv` installs MkDocs. To reach it from other devices, see [Run it on your tailnet](#run-it-on-your-tailnet).
+
+Or let the run script do it all: it builds, detects your Tailscale IP, and keeps the server running in the background.
+
+```bash
+cp .env.example .env   # set PEEKADOC_ROOT to the folder you want to serve
+./run.sh start
+```
 
 > [!NOTE]
 > Run `peekadoc` from the repository folder. It looks for `mkrender.py`, `mkdocs.yml` and `.cache/` relative to the working directory, so `go install` alone isn't enough.
@@ -94,9 +102,32 @@ Binding to the Tailscale IP keeps peekadoc off your LAN and the internet. Once i
 > [!TIP]
 > On macOS, the App Store build of Tailscale can crash when its CLI is used from a terminal. See [troubleshooting](docs/troubleshooting.md#tailscale-on-macos) for the workaround.
 
+## Run in the background
+
+`run.sh` starts peekadoc as a detached background process. It runs in its own session, so it keeps going after you close the terminal or your SSH connection drops.
+
+```bash
+./run.sh start     # build if sources changed, start, wait until it answers
+./run.sh status    # running? which pid and URL
+./run.sh logs      # follow the log
+./run.sh restart   # e.g. after editing mkdocs.yml or pulling changes
+./run.sh stop      # graceful stop (also stops the MkDocs worker)
+```
+
+Settings come from a `.env` file next to the script (copy [`.env.example`](.env.example)) or from environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PEEKADOC_ROOT` | `$HOME` | Folder to serve |
+| `PEEKADOC_ADDR` | `<tailscale-ip>:8000` | Listen address. When unset, the script uses your Tailscale IP, or `127.0.0.1` if Tailscale isn't running |
+| `PEEKADOC_PORT` | `8000` | Port used with the auto-detected address |
+| `PEEKADOC_ARGS` | | Extra flags, e.g. `-no-download` |
+
+The pid, address and log file live in `.cache/` (`peekadoc.pid`, `peekadoc.addr`, `peekadoc.log`). `run.sh` doesn't survive a reboot. For that, use launchd below.
+
 ## Run as a service (macOS)
 
-To keep peekadoc running after you log out of SSH or reboot, use the launchd template in [`contrib/`](contrib/com.github.huklee.peekadoc.plist):
+To keep peekadoc running across reboots, use the launchd template in [`contrib/`](contrib/com.github.huklee.peekadoc.plist):
 
 ```bash
 cp contrib/com.github.huklee.peekadoc.plist ~/Library/LaunchAgents/
@@ -105,7 +136,7 @@ cp contrib/com.github.huklee.peekadoc.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.github.huklee.peekadoc.plist
 ```
 
-Logs go to `/tmp/peekadoc.log`. To stop it: `launchctl bootout gui/$(id -u)/com.github.huklee.peekadoc`. For a quick session instead, run peekadoc inside `tmux`.
+Logs go to `/tmp/peekadoc.log`. To stop it: `launchctl bootout gui/$(id -u)/com.github.huklee.peekadoc`. Use either launchd or `run.sh`, not both, since they'd compete for the same port.
 
 ## MkDocs setup
 
@@ -190,6 +221,7 @@ gofmt -l . && go vet ./...                      # what CI checks
 | `app.html` | The whole web UI (vanilla JS), embedded with `go:embed`; rebuild after editing |
 | `mkrender.py` | MkDocs Material worker (inline dependencies, run by `uv`) |
 | `mkdocs.yml` | Theme and Markdown extensions used for every page |
+| `run.sh`, `.env.example` | Background start/stop script and its settings template |
 | `contrib/` | launchd service template |
 | `docs/` | Design, requirements, troubleshooting, screenshots |
 

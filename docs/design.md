@@ -190,7 +190,7 @@ go build -o peekadoc .
 | `-cache` | `.cache` | Theme asset folder |
 | `-no-download` | `false` | View-only mode |
 
-Relative defaults are resolved against the working directory, so run it from the repo folder. The first start may take a while as `uv` installs MkDocs. Run it in `tmux` or as a `launchd` agent so it survives SSH disconnects.
+Relative defaults are resolved against the working directory, so run it from the repo folder. The first start may take a while as `uv` installs MkDocs. To keep it running after SSH disconnects, use `./run.sh start`: it detaches the server into its own session (`setsid` + `nohup`) and keeps its pid and log in `.cache/`, with settings in a gitignored `.env`. To survive reboots, use the launchd template in `contrib/`.
 
 ### Access
 * `http://<tailscale-ip>:8000/` from any tailnet device, or `http://<machine-name>:8000/` with MagicDNS.
@@ -205,7 +205,7 @@ The Mac App Store build of Tailscale crashes when its CLI is used from a termina
 
 | Limitation | Possible next step |
 |---|---|
-| Not a persistent service | `launchd` agent in `~/Library/LaunchAgents` |
+| `run.sh` doesn't survive reboots | Use the launchd template in `contrib/` |
 | Plain HTTP (Tailscale's WireGuard still encrypts the traffic) | `tailscale serve` for HTTPS, then bind to `127.0.0.1` |
 | Client needs internet for CDN assets | Vendor github-markdown-css / KaTeX / Mermaid into the binary |
 | One MkDocs worker, requests serialized | A small pool of workers if several people browse at once |
