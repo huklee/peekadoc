@@ -1,0 +1,41 @@
+# Build output
+/peekadoc
+/docserv
+*.exe
+*.test
+*.out
+/dist/
+
+# Runtime cache (MkDocs theme assets copied by the renderer)
+/.cache/
+
+# MkDocs build output
+/site/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Downloads / archives
+*.zip
+
+# Secrets and local config: never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+credentials*
+secrets*
+.netrc
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
