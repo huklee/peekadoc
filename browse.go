@@ -564,4 +564,3 @@ func ChromaCSS() []byte {
 	buf.WriteString("}\n")
 	return buf.Bytes()
 }
-

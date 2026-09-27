@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go build & vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go build -o peekadoc .
+
+  renderer:
+    name: MkDocs renderer smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Render docs/prd.md
+        run: |
+          out=$(printf '{"path": "%s"}\n' "$PWD/docs/prd.md" \
+            | uv run --quiet --script mkrender.py --config mkdocs.yml --assets "$RUNNER_TEMP/theme")
+          echo "$out" | head -c 300
+          echo "$out" | sed -n 2p | python3 -c 'import json, sys; r = json.load(sys.stdin); assert "<article" in r.get("html", ""), r'
