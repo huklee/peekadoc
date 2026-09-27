@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Work</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5/github-markdown.min.css">
+<link rel="stylesheet" href="/chroma.css">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --side: #f6f8fa;
+    --border: #d0d7de;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --hover: rgba(175, 184, 193, .2);
+    --active: #ddf4ff;
+    --accent: #0969da;
+    --accent-fg: #ffffff;
+    --folder: #54aeff;
+    --bar-h: 45px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --side: #010409;
+      --border: #30363d;
+      --fg: #e6edf3;
+      --muted: #7d8590;
+      --hover: rgba(177, 186, 196, .12);
+      --active: rgba(56, 139, 253, .15);
+      --accent: #4493f8;
+      --accent-fg: #0d1117;
+      --folder: #7d8590;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    grid-template-columns: var(--sw, 300px) minmax(0, 1fr);
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  }
+  button {
+    font: inherit;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  /* Sidebar */
+  #side {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-width: 0;
+    background: var(--side);
+    border-right: 1px solid var(--border);
+  }
+  #side header { padding: 12px 12px 8px; border-bottom: 1px solid var(--border); }
+  .brand { font-weight: 600; margin: 0 2px 8px; cursor: pointer; }
+  #search {
+    width: 100%;
+    padding: 6px 10px;
+    font: inherit;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--active); }
+  .tree { list-style: none; margin: 0; padding: 6px 0 24px; overflow: auto; flex: 1; }
+  .tree ul { list-style: none; margin: 0; padding: 0; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 6px;
+    padding: 3px 8px 3px calc(4px + var(--d, 0) * 14px);
+    border-radius: 6px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  .row:hover { background: var(--hover); }
+  .row.active { background: var(--active); color: var(--accent); }
+  .row svg { flex: none; }
+  .pick { display: none; flex: none; margin: 0 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+  body.can-download .pick { display: inline-block; visibility: hidden; }
+  body.can-download .row:hover .pick,
+  body.selecting .pick,
+  .pick:checked { visibility: visible; }
+  .row.picked { background: var(--active); }
+  .caret { width: 16px; display: inline-flex; justify-content: center; color: var(--muted); transition: transform .12s; }
+  li.open > .row .caret { transform: rotate(90deg); }
+  .ico-dir { color: var(--folder); }
+  .ico-file { color: var(--muted); }
+  .name { overflow: hidden; text-overflow: ellipsis; }
+  li.file:not(.doc) > .row .name { color: var(--muted); }
+  .row.active .name { color: inherit !important; }
+  .hit .where { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; margin-left: 6px; }
+  .note { color: var(--muted); padding: 8px 16px; }
+  #selbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--side);
+  }
+  #selbar[hidden] { display: none; }
+  #selcount { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #resizer { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 2; }
+  #resizer:hover, #resizer.dragging { background: var(--accent); opacity: .4; }
+
+  /* Main */
+  #main { height: 100vh; overflow: auto; min-width: 0; }
+  #bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: var(--bar-h);
+    padding: 0 16px 0 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  #crumbs { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #crumbs a { color: inherit; text-decoration: none; cursor: pointer; }
+  #crumbs a:hover { color: var(--accent); text-decoration: underline; }
+  #crumbs b { color: var(--fg); font-weight: 600; }
+  #crumbs .sep { margin: 0 6px; opacity: .6; }
+  #menu { display: none; flex: none; padding: 4px 6px; }
+  #dl[hidden] { display: none; }
+  #content { max-width: 980px; margin: 0 auto; padding: 32px 40px 96px; }
+  #content.framed { max-width: none; padding: 0; }
+  #content .frame { display: block; width: 100%; height: calc(100vh - var(--bar-h)); border: 0; background: #fff; }
+  #content .frame.mk { background: var(--bg); }
+  .markdown-body pre.chroma { background-color: var(--bgColor-muted, #f6f8fa); }
+  #content .preview-img { max-width: 100%; height: auto; border-radius: 6px; }
+  .empty { color: var(--muted); text-align: center; padding: 96px 16px; }
+  #toast {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .15);
+  }
+  #toast[hidden] { display: none; }
+  #scrim { display: none; }
+
+  @media (max-width: 760px) {
+    body { grid-template-columns: minmax(0, 1fr); }
+    #side {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 10;
+      width: min(85vw, 340px);
+      transform: translateX(-100%);
+      transition: transform .18s ease;
+    }
+    body.nav #side { transform: none; box-shadow: 0 0 24px rgba(0, 0, 0, .3); }
+    body.nav #scrim { display: block; position: fixed; inset: 0; z-index: 9; background: rgba(0, 0, 0, .35); }
+    body.can-download .pick { visibility: visible; }
+    #resizer { display: none; }
+    #menu { display: inline-flex; }
+    #bar { padding: 0 12px 0 16px; }
+    #content { padding: 20px 16px 64px; }
+  }
+</style>
+</head>
+<body>
+<aside id="side">
+  <header>
+    <div class="brand" id="brand" title="Collapse all">Files</div>
+    <input id="search" type="search" placeholder="Search file names  ( / )" autocomplete="off" spellcheck="false">
+  </header>
+  <ul id="tree" class="tree"></ul>
+  <ul id="results" class="tree" hidden></ul>
+  <div id="selbar" hidden>
+    <span id="selcount"></span>
+    <button id="selclear">Clear</button>
+    <button id="seldl" class="primary">Download</button>
+  </div>
+  <div id="resizer"></div>
+</aside>
+<div id="scrim"></div>
+<main id="main">
+  <div id="bar">
+    <button id="menu" aria-label="Show files">
+      <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+    <nav id="crumbs"></nav>
+    <button id="dl" hidden title="Download this file">
+      <svg width="14" height="14" viewBox="0 0 16 16" style="vertical-align:-2px"><path d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Download
+    </button>
+  </div>
+  <article id="content" class="markdown-body"></article>
+</main>
+<div id="toast" hidden></div>
+<script>
+const CARET = '<span class="caret"><svg width="12" height="12" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+const SPACER = '<span class="caret"></span>';
+const FOLDER = '<svg class="ico-dir" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1.75 2.5h3.9c.4 0 .78.16 1.06.44L7.8 4h6.45c.41 0 .75.34.75.75v8.5c0 .41-.34.75-.75.75H1.75A.75.75 0 0 1 1 13.25V3.25c0-.41.34-.75.75-.75Z"/></svg>';
+const FILE = '<svg class="ico-file" width="16" height="16" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.2" d="M4 1.75h5.25L12.5 5v9.25H4Z M9 1.75V5.25h3.5"/></svg>';
+// HTML files run in an opaque origin: their scripts work but can't reach this app.
+const HTML_SANDBOX = 'allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox';
+
+const $ = id => document.getElementById(id);
+const tree = $('tree'), results = $('results'), content = $('content'), search = $('search');
+const enc = p => p.split('/').map(encodeURIComponent).join('/');
+const isDoc = n => /\.(md|markdown|html?)$/i.test(n);
+const currentPath = () => decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+const liFor = p => tree.querySelector(`li[data-path="${CSS.escape(p)}"]`);
+const selected = new Map();  // path -> isDir
+let canDownload = false;
+let current = null;          // {path, view} being shown
+let watch = null;            // {path, mtime, reload} for live reload
+
+async function getJSON(url, params) {
+  const res = await fetch(url + '?' + new URLSearchParams(params));
+  if (!res.ok) throw new Error((await res.text()).trim() || res.statusText);
+  return res.json();
+}
+
+function toast(text, ms = 4000) {
+  const el = $('toast');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toast.timer);
+  if (ms) toast.timer = setTimeout(() => { el.hidden = true; }, ms);
+}
+
+function formatSize(n) {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+// Tree
+
+function makeRow(entry, path, depth) {
+  const li = document.createElement('li');
+  li.className = entry.dir ? 'dir' : 'file' + (isDoc(entry.name) ? ' doc' : '');
+  li.dataset.path = path;
+  li.dataset.depth = depth;
+  const row = document.createElement('div');
+  row.className = 'row' + (selected.has(path) ? ' picked' : '');
+  row.style.setProperty('--d', depth);
+  row.title = path;
+  const pick = document.createElement('input');
+  pick.type = 'checkbox';
+  pick.className = 'pick';
+  pick.checked = selected.has(path);
+  pick.setAttribute('aria-label', 'Select ' + entry.name);
+  row.append(pick);
+  row.insertAdjacentHTML('beforeend', entry.dir ? CARET + FOLDER : SPACER + FILE);
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = entry.name;
+  row.append(name);
+  li.append(row);
+  if (entry.dir) {
+    const ul = document.createElement('ul');
+    ul.hidden = true;
+    li.append(ul);
+  }
+  return li;
+}
+
+async function fill(ul, path, depth) {
+  const data = await getJSON('/api/list', { p: path });
+  ul.replaceChildren(...data.entries.map(e => makeRow(e, path ? `${path}/${e.name}` : e.name, depth)));
+  if (!data.entries.length) ul.innerHTML = `<li class="note" style="padding-left:${44 + depth * 14}px">Empty</li>`;
+  return data;
+}
+
+async function setOpen(li, open) {
+  const ul = li.lastElementChild;
+  if (open && !li.dataset.loaded) {
+    li.dataset.loaded = '1';
+    try {
+      await fill(ul, li.dataset.path, +li.dataset.depth + 1);
+    } catch (err) {
+      delete li.dataset.loaded;
+      ul.innerHTML = '<li class="note"></li>';
+      ul.firstChild.textContent = err.message;
+    }
+  }
+  li.classList.toggle('open', open);
+  ul.hidden = !open;
+}
+
+// Expand the tree down to `path` and highlight it.
+async function reveal(path) {
+  const parts = path.split('/');
+  for (let i = 1; i < parts.length; i++) {
+    const li = liFor(parts.slice(0, i).join('/'));
+    if (!li) return;
+    await setOpen(li, true);
+  }
+  tree.querySelectorAll('.row.active').forEach(r => r.classList.remove('active'));
+  const li = liFor(path);
+  if (!li) return;
+  if (li.classList.contains('dir')) await setOpen(li, true);
+  li.firstElementChild.classList.add('active');
+  li.firstElementChild.scrollIntoView({ block: 'nearest' });
+}
+
+// Selection & downloads
+
+function toggleSelect(li, on) {
+  const path = li.dataset.path;
+  on ??= !selected.has(path);
+  if (on) selected.set(path, li.classList.contains('dir')); else selected.delete(path);
+  syncSelection();
+}
+
+function syncSelection() {
+  for (const row of document.querySelectorAll('.tree .row')) {
+    const on = selected.has(row.parentElement.dataset.path);
+    row.classList.toggle('picked', on);
+    row.querySelector('.pick').checked = on;
+  }
+  const n = selected.size;
+  document.body.classList.toggle('selecting', n > 0);
+  $('selbar').hidden = n === 0;
+  const folders = [...selected.values()].filter(Boolean).length;
+  $('selcount').textContent = `${n} selected` + (folders ? ` (${folders} folder${folders > 1 ? 's' : ''})` : '');
+}
+
+function startDownload(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '';
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
+// items: [{path, dir}]. A single file downloads as-is; anything else as one zip.
+async function downloadPaths(items) {
+  if (items.length === 1 && !items[0].dir) return startDownload('/raw/' + enc(items[0].path) + '?download=1');
+  const params = new URLSearchParams(items.map(i => ['p', i.path]));
+  try {
+    const res = await fetch('/api/zipinfo?' + params);
+    if (!res.ok) throw new Error((await res.text()).trim());
+    const info = await res.json();
+    toast(`Preparing ${info.name}: ${info.files} files, ${formatSize(info.bytes)}`);
+    startDownload('/zip?' + params);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+// Viewer
+
+function go(path) {
+  location.hash = '#/' + enc(path);
+}
+
+function setCrumbs(path) {
+  const nav = $('crumbs');
+  nav.replaceChildren();
+  const parts = path ? path.split('/') : [];
+  parts.forEach((part, i) => {
+    if (i) nav.append(Object.assign(document.createElement('span'), { className: 'sep', textContent: '/' }));
+    const last = i === parts.length - 1;
+    const el = document.createElement(last ? 'b' : 'a');
+    el.textContent = part;
+    if (!last) el.onclick = () => go(parts.slice(0, i + 1).join('/'));
+    nav.append(el);
+  });
+}
+
+function message(text) {
+  content.className = 'markdown-body';
+  content.innerHTML = '<div class="empty"></div>';
+  content.firstChild.textContent = text;
+}
+
+function frame(src, cls, sandbox) {
+  content.className = 'markdown-body framed';
+  const f = document.createElement('iframe');
+  f.className = 'frame ' + cls;
+  if (sandbox !== undefined) f.setAttribute('sandbox', sandbox);
+  f.src = src;
+  content.replaceChildren(f);
+  return f;
+}
+
+// Keep navigation inside the MkDocs frame in sync with the app.
+function wireMkFrame(f) {
+  let restoreY = 0;
+  f.addEventListener('load', () => {
+    const win = f.contentWindow;
+    let doc;
+    try { doc = f.contentDocument; } catch { return; }
+    if (!doc) return;
+    if (restoreY) { win.scrollTo(0, restoreY); restoreY = 0; }
+    doc.addEventListener('keydown', e => { if (e.key === '/') { e.preventDefault(); search.focus(); } });
+    doc.addEventListener('click', e => {
+      const a = e.target.closest('a[href]');
+      if (!a || a.getAttribute('href').startsWith('#')) return;
+      const u = new URL(a.href, win.location.href);
+      if (u.origin !== location.origin) {
+        a.target = '_blank';
+        a.rel = 'noopener';
+        return;
+      }
+      if (u.pathname.startsWith('/mk/') && !u.pathname.startsWith('/mk/_theme/')) {
+        e.preventDefault();
+        go(decodeURIComponent(u.pathname.slice(4)).replace(/\/$/, ''));
+      }
+    });
+  });
+  return () => {
+    try { restoreY = f.contentWindow.scrollY; f.contentWindow.location.reload(); } catch { f.src = f.src; }
+  };
+}
+
+async function show(keepScroll = false) {
+  const path = currentPath();
+  document.body.classList.remove('nav');
+  setCrumbs(path);
+  const brand = $('brand').textContent;
+  document.title = path ? `${path.split('/').pop()} · ${brand}` : brand;
+  watch = null;
+  if (!path) {
+    current = null;
+    $('dl').hidden = true;
+    tree.querySelectorAll('.row.active').forEach(r => r.classList.remove('active'));
+    return message('Select a file from the sidebar.');
+  }
+  reveal(path);
+  let view;
+  try {
+    view = await getJSON('/api/view', { p: path });
+  } catch (err) {
+    current = null;
+    $('dl').hidden = true;
+    return message(err.message);
+  }
+  if (path !== currentPath()) return;  // user already moved on
+  current = { path, view };
+  $('dl').hidden = !canDownload;
+  $('dl').lastChild.textContent = view.dir ? ' Download .zip' : ' Download';
+
+  const scrollY = $('main').scrollTop;
+  const raw = '/raw/' + enc(view.path);
+  let reload = () => show(true);
+  switch (view.kind) {
+    case 'md':
+      reload = wireMkFrame(frame('/mk/' + enc(view.path), 'mk'));
+      break;
+    case 'html': {
+      const f = frame(raw, 'html', HTML_SANDBOX);
+      reload = () => { f.src = raw + '?t=' + Date.now(); };
+      break;
+    }
+    case 'pdf':
+      frame(raw, 'pdf');
+      break;
+    case 'image':
+      content.className = 'markdown-body';
+      content.innerHTML = '<img class="preview-img" alt="">';
+      content.firstChild.src = raw + '?t=' + (view.mtime || 0);
+      break;
+    case 'text':
+      content.className = 'markdown-body';
+      content.innerHTML = view.html;
+      break;
+    case 'dir':
+      message('This folder has no README. Pick a file from the sidebar.');
+      reload = null;
+      break;
+    default:
+      message(`No preview for this file (${formatSize(view.size)}).`);
+  }
+  $('main').scrollTop = keepScroll ? scrollY : 0;
+  if (reload && view.mtime !== undefined) watch = { path: view.path, mtime: view.mtime, reload };
+}
+
+// Live reload: poll the shown file and refresh when it changes on disk.
+setInterval(async () => {
+  if (!watch || document.hidden) return;
+  const w = watch;
+  try {
+    const s = await getJSON('/api/stat', { p: w.path });
+    if (w === watch && s.mtime !== w.mtime) {
+      w.mtime = s.mtime;
+      w.reload();
+    }
+  } catch {}
+}, 2000);
+
+// Search
+
+let searchTimer;
+function clearSearch() {
+  search.value = '';
+  results.hidden = true;
+  tree.hidden = false;
+  syncSelection();
+}
+async function runSearch() {
+  const q = search.value.trim();
+  if (q.length < 2) return clearSearch();
+  let data;
+  try {
+    data = await getJSON('/api/find', { q });
+  } catch {
+    return;
+  }
+  if (q !== search.value.trim()) return;
+  tree.hidden = true;
+  results.hidden = false;
+  results.replaceChildren(...data.hits.map(hit => {
+    const name = hit.path.split('/').pop();
+    const li = makeRow({ name, dir: hit.dir }, hit.path, 0);
+    li.classList.add('hit');
+    li.querySelector('.caret').replaceChildren();
+    const where = document.createElement('span');
+    where.className = 'where';
+    where.textContent = hit.path.slice(0, -name.length - 1);
+    li.firstElementChild.append(where);
+    return li;
+  }));
+  if (!data.hits.length) results.innerHTML = '<li class="note">No matches</li>';
+  else if (data.truncated) results.insertAdjacentHTML('beforeend', '<li class="note">Showing first results only. Refine your search.</li>');
+}
+search.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 200);
+});
+search.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { clearSearch(); search.blur(); }
+  if (e.key === 'Enter') results.querySelector('.row .name')?.click();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== search) {
+    e.preventDefault();
+    document.body.classList.add('nav');
+    search.focus();
+  }
+  if (e.key === 'Escape' && selected.size && document.activeElement !== search) {
+    selected.clear();
+    syncSelection();
+  }
+});
+
+// Clicks
+
+function onRowClick(e, fromResults) {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const li = row.parentElement;
+  if (e.target.classList.contains('pick')) return toggleSelect(li, e.target.checked);
+  if (canDownload && (e.metaKey || e.ctrlKey)) return toggleSelect(li);
+  const path = li.dataset.path;
+  if (fromResults) {
+    clearSearch();
+    return path === currentPath() ? reveal(path) : go(path);
+  }
+  if (li.classList.contains('dir')) setOpen(li, !li.classList.contains('open'));
+  else go(path);
+}
+tree.addEventListener('click', e => onRowClick(e, false));
+results.addEventListener('click', e => onRowClick(e, true));
+$('selclear').onclick = () => { selected.clear(); syncSelection(); };
+$('seldl').onclick = () => downloadPaths([...selected].map(([path, dir]) => ({ path, dir })));
+$('dl').onclick = () => current && downloadPaths([{ path: current.path, dir: !!current.view.dir }]);
+$('brand').onclick = () => tree.querySelectorAll('li.open').forEach(li => setOpen(li, false));
+$('menu').onclick = () => document.body.classList.toggle('nav');
+$('scrim').onclick = () => document.body.classList.remove('nav');
+
+// Resizable sidebar
+
+const resizer = $('resizer');
+const setWidth = w => document.body.style.setProperty('--sw', Math.max(180, Math.min(640, w)) + 'px');
+try { const w = +localStorage.getItem('peekadoc.sidebar'); if (w) setWidth(w); } catch {}
+resizer.addEventListener('pointerdown', e => {
+  resizer.setPointerCapture(e.pointerId);
+  resizer.classList.add('dragging');
+  document.body.style.pointerEvents = 'none';  // keep iframes from swallowing the drag
+  resizer.style.pointerEvents = 'auto';
+  const move = ev => setWidth(ev.clientX);
+  const up = ev => {
+    resizer.removeEventListener('pointermove', move);
+    resizer.removeEventListener('pointerup', up);
+    resizer.classList.remove('dragging');
+    document.body.style.pointerEvents = '';
+    try { localStorage.setItem('peekadoc.sidebar', Math.round(ev.clientX)); } catch {}
+  };
+  resizer.addEventListener('pointermove', move);
+  resizer.addEventListener('pointerup', up);
+});
+
+window.addEventListener('hashchange', () => show());
+fill(tree, '', 0)
+  .then(data => {
+    $('brand').textContent = data.root;
+    canDownload = data.download;
+    document.body.classList.toggle('can-download', canDownload);
+  })
+  .catch(err => { tree.innerHTML = '<li class="note"></li>'; tree.firstChild.textContent = err.message; })
+  .finally(() => show());
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.github.huklee.peekadoc</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/YOU/peekadoc</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/YOU/peekadoc/peekadoc</string>
+    <string>-root</string>
+    <string>/Users/YOU/Documents</string>
+    <string>-addr</string>
+    <string>100.x.y.z:8000</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/YOU/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/peekadoc.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/peekadoc.log</string>
+</dict>
+</plist>
