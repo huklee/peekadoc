@@ -6,7 +6,7 @@ Read-only web file browser that lets a remote client (over Tailscale) browse a f
 
 ## 1. Goals and constraints
 
-Derived from [`docs/prd.md`](docs/prd.md):
+Derived from [`prd.md`](prd.md):
 
 | Requirement | How peekadoc meets it |
 |---|---|
