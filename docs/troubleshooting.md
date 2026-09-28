@@ -39,7 +39,7 @@ It should print `{"ready": true}` and then `{"html": "..."}`. Anything else, suc
 | Symptom | Fix |
 |---|---|
 | Page doesn't load from another device | Check that both devices are on the same tailnet (`tailscale status`) and that peekadoc was started with `-addr <tailscale-ip>:8000`, not the default `127.0.0.1`. |
-| Works on the tailnet, but `http://127.0.0.1:8000` fails on the host | Expected: peekadoc listens only on the address you pass to `-addr`. Use the Tailscale IP on the host too. |
+| Works on the tailnet, but `https://127.0.0.1:8000` fails on the host | Expected: peekadoc listens only on the address you pass to `-addr`. Use the full Tailscale DNS name on the host too; the certificate does not cover the IP or short name. |
 | Connection times out even with the right address | The macOS firewall may be blocking incoming connections for `peekadoc`. Allow it in System Settings → Network → Firewall. Also check your Tailscale ACLs allow the port. |
 | `bind: address already in use` | Another process is using the port. Pick another port (`-addr <ip>:8001`) or find it with `lsof -i :8000`. |
 | `bind: can't assign requested address` | The IP isn't on this machine, usually because Tailscale isn't connected yet. Start Tailscale first, then peekadoc. |

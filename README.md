@@ -41,28 +41,21 @@ peekadoc is a read-only web file browser. A folder tree sits on the left, and th
 - **Previews for everything else**: sandboxed HTML pages, syntax-highlighted code and text, images, PDFs.
 - **Live reload**: the view refreshes when the file changes on disk.
 - **Downloads**: grab the current file, or multi-select files and folders (checkbox or ⌘/Ctrl-click) and get one zip. Turn it off with `-no-download`.
-- **Read-only by construction**: `GET` routes only, hidden files never shown, nothing outside the served folder.
+- **Read-only files**: browsing and download routes cannot change files; hidden files stay hidden and paths stay inside the served folder.
 - **Nice to use**: deep links (`#/path/to/file.md`), back/forward, dark mode, phone-friendly layout, resizable sidebar.
 
 ## Quick start
 
-**Requirements:** [Go](https://go.dev/dl/) 1.25+ and [uv](https://docs.astral.sh/uv/getting-started/installation/). MkDocs is installed automatically; see [MkDocs setup](#mkdocs-setup).
+**Requirements:** [Go](https://go.dev/dl/) 1.25+, [uv](https://docs.astral.sh/uv/getting-started/installation/), and Tailscale with [MagicDNS and HTTPS Certificates enabled](https://tailscale.com/docs/how-to/set-up-https-certificates). MkDocs is installed automatically; see [MkDocs setup](#mkdocs-setup).
 
 ```bash
 git clone https://github.com/huklee/peekadoc.git
 cd peekadoc
-go build -o peekadoc .
-./peekadoc -root ~/Documents
-```
-
-Open <http://127.0.0.1:8000/>. The first start takes a minute while `uv` installs MkDocs. To reach it from other devices, see [Run it on your tailnet](#run-it-on-your-tailnet).
-
-Or let the run script do it all: it builds, detects your Tailscale IP, and keeps the server running in the background.
-
-```bash
 cp .env.example .env   # set PEEKADOC_ROOT to the folder you want to serve
 ./run.sh start
 ```
+
+Open the HTTPS URL printed by the script and sign in. On first start, a random password is saved in `.cache/password`; read it with `cat .cache/password`. Set `PEEKADOC_PASSWORD` in `.env` to choose your own password, then restart. Sessions use a Secure, HttpOnly, SameSite=Strict browser-session cookie and end on sign-out or server restart. Browser session restore may keep the cookie after reopening, so sign out explicitly when finished.
 
 > [!NOTE]
 > Run `peekadoc` from the repository folder. It looks for `mkrender.py`, `mkdocs.yml` and `.cache/` relative to the working directory, so `go install` alone isn't enough.
@@ -81,23 +74,19 @@ cp .env.example .env   # set PEEKADOC_ROOT to the folder you want to serve
 | `-mkdocs-config` | `mkdocs.yml` | MkDocs config used to render Markdown |
 | `-renderer` | `mkrender.py` | MkDocs renderer script, run with `uv run` |
 | `-cache` | `.cache` | Folder for the shared MkDocs theme assets |
+| `-password-file` | `.cache/password` | Generated password file; `PEEKADOC_PASSWORD` overrides it |
+| `-tls-name` | auto-detected | Full Tailscale DNS name for HTTPS |
+| `-cert-dir` | `.cache/certs` | Cached Tailscale certificate and key |
 
 **Keyboard:** `/` search · `Enter` open first result · `Esc` clear search or selection · ⌘/Ctrl-click select.
 
 ## Run it on your tailnet
 
-1. Install [Tailscale](https://tailscale.com/download) on the host and on the devices you'll browse from, all signed in to the same account.
-2. Find the host's Tailscale IP:
-   ```bash
-   tailscale ip -4        # e.g. 100.101.102.103
-   ```
-3. Bind peekadoc to it:
-   ```bash
-   ./peekadoc -root ~/Documents -addr 100.101.102.103:8000
-   ```
-4. From any device on the tailnet, open `http://100.101.102.103:8000/`, or `http://<machine-name>:8000/` with [MagicDNS](https://tailscale.com/kb/1081/magicdns).
+1. Install [Tailscale](https://tailscale.com/download) on the host and viewing devices, and enable [MagicDNS and HTTPS Certificates](https://tailscale.com/docs/how-to/set-up-https-certificates) for the tailnet.
+2. Run `./run.sh start`. The script binds to the current Tailscale IP and displays the full HTTPS URL, such as `https://machine-name.tailnet.ts.net:8000/`. Use that full name: Tailscale's public certificate does not cover the short host name or IP address.
+3. Sign in with the password from `.cache/password` (or `PEEKADOC_PASSWORD`). All file previews, downloads, assets and APIs require the session.
 
-Binding to the Tailscale IP keeps peekadoc off your LAN and the internet. Once it's bound there, `127.0.0.1:8000` won't work on the host itself; use the Tailscale address there too.
+The server requests a publicly trusted Tailscale certificate at startup and renews it before expiry. It will not serve HTTP if the HTTPS certificate is unavailable. Binding to the Tailscale IP keeps peekadoc off the LAN and public internet.
 
 > [!TIP]
 > On macOS, the App Store build of Tailscale can crash when its CLI is used from a terminal. See [troubleshooting](docs/troubleshooting.md#tailscale-on-macos) for the workaround.
@@ -119,11 +108,13 @@ Settings come from a `.env` file next to the script (copy [`.env.example`](.env.
 | Variable | Default | Description |
 |---|---|---|
 | `PEEKADOC_ROOT` | `$HOME` | Folder to serve |
-| `PEEKADOC_ADDR` | `<tailscale-ip>:8000` | Listen address. When unset, the script uses your Tailscale IP, or `127.0.0.1` if Tailscale isn't running |
+| `PEEKADOC_ADDR` | `<tailscale-ip>:8000` | Listen address. When unset, the script uses your Tailscale IP and fails if Tailscale is unavailable |
 | `PEEKADOC_PORT` | `8000` | Port used with the auto-detected address |
 | `PEEKADOC_ARGS` | | Extra flags, e.g. `-no-download` |
+| `PEEKADOC_PASSWORD` | generated | Override the password saved in `.cache/password` |
+| `PEEKADOC_TLS_NAME` | auto-detected | Full Tailscale DNS name for HTTPS |
 
-The pid, address and log file live in `.cache/` (`peekadoc.pid`, `peekadoc.addr`, `peekadoc.log`). `run.sh` doesn't survive a reboot. For that, use launchd below.
+The pid, address, URL and log file live in `.cache/` (`peekadoc.pid`, `peekadoc.addr`, `peekadoc.url`, `peekadoc.log`). `run.sh` doesn't survive a reboot. For that, use launchd below.
 
 ## Run as a service (macOS)
 
@@ -185,13 +176,13 @@ Something not rendering? See [troubleshooting](docs/troubleshooting.md#markdown-
 
 peekadoc is designed so that the browser can look but never touch:
 
-- **No write paths**: only `GET`/`HEAD` routes exist; anything else gets `405`.
+- **Read-only content**: file routes use `GET`/`HEAD`; only login and logout accept `POST`.
 - **Sandboxed paths**: any path segment starting with `.` is rejected (this covers `..` and dotfiles), and every path is resolved through symlinks and must stay inside `-root`.
 - **Sandboxed content**: HTML files run in an opaque-origin sandbox, so their scripts can't reach peekadoc's API. SVG and XML get no scripting at all, and every raw response sends `nosniff`.
 - **No network socket for the renderer**: the MkDocs worker only talks to the Go server over stdin/stdout.
 
 > [!IMPORTANT]
-> peekadoc has **no login of its own**. Anyone who can reach the port can read everything under `-root`. Bind it to your Tailscale IP (not `0.0.0.0`) and use [Tailscale ACLs](https://tailscale.com/kb/1018/acls) to limit which devices can connect. If your client machine must not keep copies of files (e.g. under MDM rules), run with `-no-download`.
+> peekadoc requires a password and an authenticated browser session. Bind it to your Tailscale IP (not `0.0.0.0`) and use [Tailscale ACLs](https://tailscale.com/kb/1018/acls) to limit which devices can connect. If your client machine must not keep copies of files (e.g. under MDM rules), run with `-no-download`.
 
 The full threat model is in [docs/design.md § Security model](docs/design.md#7-security-model).
 
@@ -237,7 +228,6 @@ Contributions are welcome. Please open an issue to discuss larger changes first,
 
 ## Roadmap
 
-- HTTPS via `tailscale serve`
 - Bundle CSS/JS locally so clients don't need internet access
 - Full-text search
 - Jupyter notebook previews
