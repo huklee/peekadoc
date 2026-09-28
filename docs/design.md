@@ -10,8 +10,8 @@ Derived from [`prd.md`](prd.md):
 
 | Requirement | How peekadoc meets it |
 |---|---|
-| View results on the host from a remote client | HTTP server bound to the host's Tailscale IP |
-| Nothing flows back from the client to the host | Only `GET`/`HEAD` routes exist; no upload, edit or delete |
+| View results on the host from a remote client | HTTPS server bound to the host's Tailscale IP |
+| Nothing flows back from the client to the host | File routes use `GET`/`HEAD` only; login and logout use `POST`; no upload, edit or delete |
 | No exposure to LAN / internet | Binds to the Tailscale interface address only |
 | MkDocs-quality Markdown (math, tables, Mermaid, highlighting) | Each `.md` file is rendered by MkDocs Material |
 | Browse large folders without pre-building a site | Folder tree loads lazily; each file is rendered only when opened |
@@ -20,7 +20,6 @@ Derived from [`prd.md`](prd.md):
 ### Non-goals
 * Editing, uploading or syncing files.
 * Full-text search of file contents (only names are searched).
-* In-app authentication (access control is delegated to Tailscale, see §7).
 
 ### History
 1. **MkDocs over the whole folder**: pre-rendering `~/Work` (7 GB, ~26k files, ~600 `.md`) copied 4.6 GB of assets per build and pulled in `node_modules` READMEs.
@@ -35,7 +34,7 @@ Derived from [`prd.md`](prd.md):
  Client (browser on the tailnet)                 Host
 ┌──────────────────────────────────┐          ┌──────────────────────────────────────────┐
 │ app.html (vanilla JS)            │          │ peekadoc  (Go, net/http)                 │
-│ ┌────────────┬─────────────────┐ │   HTTP   │                                          │
+│ ┌────────────┬─────────────────┐ │  HTTPS   │                                          │
 │ │ Tree panel │ Viewer panel    │ │  over    │  /api/list /api/view /api/stat /api/find │
 │ │ (lazy)     │ md → MkDocs     │◄├──────────┤► /raw/<path>   files (Range, download)   │
 │ │ + search   │ html → sandbox  │ │ Tailscale│  /zip  /api/zipinfo   multi-file zip     │
@@ -53,7 +52,7 @@ Derived from [`prd.md`](prd.md):
 
 | File | Role |
 |---|---|
-| `main.go` | Flags, routes, HTTP server, graceful shutdown |
+| `main.go` | Flags, routes, HTTPS server, graceful shutdown |
 | `browse.go` | Path sandboxing, listing, view kinds, name search, raw files, zip downloads, code highlighting (chroma) |
 | `render.go` | Starts and supervises the MkDocs worker, request/response over pipes, page cache |
 | `app.html` | Single-page UI, embedded into the binary with `go:embed` |
@@ -169,7 +168,7 @@ MkDocs is pinned below 2.0: the Material team has said MkDocs 2.0 drops the plug
 | Active content | `/raw/` sends `X-Content-Type-Options: nosniff`. HTML is sent with `Content-Security-Policy: sandbox allow-scripts …` (opaque origin, can't read the app's API or storage); SVG/XML get `sandbox` with no scripting. |
 | Markdown frame | Same-origin by design (needed for link interception). It only contains MkDocs output of the owner's own files; raw HTML in Markdown is passed through by Python-Markdown. |
 | Downloads | On by default; `-no-download` hides the UI and rejects `?download=1`, `/zip` and `/api/zipinfo`. `/raw/` stays available because previews need it, so a determined user can still save a file. |
-| Authentication | None in-app; anyone on the tailnet who can reach the port can read the root folder. |
+| Authentication | Password login with a Secure, HttpOnly browser-session cookie. All content routes require a session; Tailscale ACLs add network access control. |
 
 ---
 
@@ -193,7 +192,7 @@ go build -o peekadoc .
 Relative defaults are resolved against the working directory, so run it from the repo folder. The first start may take a while as `uv` installs MkDocs. To keep it running after SSH disconnects, use `./run.sh start`: it detaches the server into its own session (`setsid` + `nohup`) and keeps its pid and log in `.cache/`, with settings in a gitignored `.env`. To survive reboots, use the launchd template in `contrib/`.
 
 ### Access
-* `http://<tailscale-ip>:8000/` from any tailnet device, or `http://<machine-name>:8000/` with MagicDNS.
+* `https://<machine-name>.<tailnet>.ts.net:8000/` from a tailnet device. The full MagicDNS name is required for certificate validation.
 * Binding to the Tailscale IP means `127.0.0.1:8000` does not work on the host itself.
 
 ### Known environment issue
@@ -206,10 +205,8 @@ The Mac App Store build of Tailscale crashes when its CLI is used from a termina
 | Limitation | Possible next step |
 |---|---|
 | `run.sh` doesn't survive reboots | Use the launchd template in `contrib/` |
-| Plain HTTP (Tailscale's WireGuard still encrypts the traffic) | `tailscale serve` for HTTPS, then bind to `127.0.0.1` |
 | Client needs internet for CDN assets | Vendor github-markdown-css / KaTeX / Mermaid into the binary |
 | One MkDocs worker, requests serialized | A small pool of workers if several people browse at once |
 | Mixed 2- and 4-space list indentation in one file renders one style wrong | Normalize list indentation before rendering |
 | Name search only | Content search via `ripgrep` with the same path rules |
 | No `.ipynb` / Office previews | Render notebooks with `nbconvert` |
-| No in-app auth | Rely on Tailscale ACLs; optionally restrict the port to specific devices |

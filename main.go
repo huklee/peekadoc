@@ -9,11 +9,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -32,7 +34,21 @@ func main() {
 	config := flag.String("mkdocs-config", "mkdocs.yml", "MkDocs config used for rendering")
 	cache := flag.String("cache", ".cache", "folder for shared MkDocs theme assets")
 	noDownload := flag.Bool("no-download", false, "view only: disable download buttons and zip downloads")
+	passwordFile := flag.String("password-file", ".cache/password", "password file; PEEKADOC_PASSWORD overrides it")
+	tlsName := flag.String("tls-name", "", "Tailscale full DNS name (default: auto-detect)")
+	tailscaleCLI := flag.String("tailscale", defaultTailscaleCLI(), "Tailscale CLI path")
+	certDir := flag.String("cert-dir", ".cache/certs", "Tailscale certificate directory")
 	flag.Parse()
+	password, err := loadPassword(*passwordFile)
+	if err != nil {
+		log.Fatalf("load password: %v", err)
+	}
+	auth := newPasswordAuth(password)
+	certs, err := newTailscaleTLS(*tlsName, *tailscaleCLI, *certDir)
+	if err != nil {
+		log.Fatalf("TLS setup: %v", err)
+	}
+	go certs.renewLoop()
 
 	b, err := NewBrowser(*root, !*noDownload)
 	if err != nil {
@@ -71,7 +87,8 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           mux,
+		Handler:           auth.wrap(mux),
+		TLSConfig:         &tls.Config{GetCertificate: certs.get, MinVersion: tls.VersionTLS12},
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
@@ -84,8 +101,9 @@ func main() {
 		srv.Shutdown(shutdown)
 	}()
 
-	log.Printf("serving %s read-only on http://%s/ (downloads %s)", b.root, *addr, map[bool]string{true: "on", false: "off"}[b.download])
-	err = srv.ListenAndServe()
+	_, port, _ := net.SplitHostPort(*addr)
+	log.Printf("serving %s read-only on https://%s:%s/ via %s (downloads %s)", b.root, certs.name, port, *addr, map[bool]string{true: "on", false: "off"}[b.download])
+	err = srv.ListenAndServeTLS("", "")
 	r.Stop()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
